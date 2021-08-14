@@ -40,6 +40,9 @@ var (
 	totalFiles, doneFiles int
 )
 
+//Bunch of words which are not really interesting/useful from inverted indexing perspective.
+//Not a very comprehensive list. More can be added to it.
+//This can also be read from a json file, so that we can add to this list dynamically.
 var stopWords = map[string]int{
 	"I":   1,
 	"the": 1,
@@ -48,10 +51,16 @@ var stopWords = map[string]int{
 	"and": 1,
 }
 
+//Delimiting by space does not strip the punctations like comma or full-stop.
+//Someone trying to find a keyword will not specify that with a punctation.
+//Hence, stripping a trailing comma or full-stop.
+//Can be extended to other characters.
 func stripPunctuation(token string) string {
 	return strings.TrimRight(strings.TrimRight(token, "."), ",")
 }
 
+//A work function that will be executed by the spawned worker routines.
+//The file parsing happens in this function.
 func work(ctx context.Context) {
 
 	for {
@@ -110,12 +119,18 @@ func work(ctx context.Context) {
 	}
 }
 
+//startWorkers : Starts a bunch of worker routines. This is a very basic worker pool.
+//we can make it a more generic worker pool which can do anything by passing work as an
+//arg to it.
 func startWorkers(count int, ctx context.Context) {
 	for i := 0; i < count; i++ {
 		go work(ctx)
 	}
 }
 
+//enqueue : This function is used by the job producer to enqueue jobs into the queue.
+//Only the enqueuing of jobs happen in a single routine.
+//The indexing can happen in parallel by workers.
 func enqueue(path string, info fs.FileInfo, err error) error {
 	f, err := os.Open(path)
 	if err != nil {
@@ -137,11 +152,12 @@ func enqueue(path string, info fs.FileInfo, err error) error {
 	return nil
 }
 
+//Index : will start the indexing process
 func Index(root string) {
 	ctx := context.Background()
 	//ctx, cancel := context.WithCancel(ctx)
 
-	startWorkers(1, ctx)
+	startWorkers(100, ctx)
 
 	err := filepath.Walk(root, enqueue)
 	if err != nil {
